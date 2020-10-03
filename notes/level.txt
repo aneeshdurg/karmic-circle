@@ -1,0 +1,21 @@
+Levels are defined by a .level file. Every level is a ascii text file with the
+following syntax
+
+' ' air
+
+= ground
+| or - a path of motion for a connected ground piece
+_ or [ or ] a boundry for a moving piece (i.e. ground connected to the boundry won't move)
+
+~ water
+
+[A-Z] a locked block - requires the corresponding key to be collected
+[a-z] a key
+
+* a button that switches the state of % and @ blocks
+% ground that's controlled by a button (on)
+@ ground that's controlled by a button (off)
+
+^ checkpoint
+\d id of level to connect to. The posistion will be maintined when crossing into
+a level. This must occur on the boundry of a level

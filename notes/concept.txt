@@ -1,0 +1,25 @@
+Concept: dying reincarnates you as a different animal depending on how you died.
+
+
+human:
+  default animal
+  can pick up items and directly interact with environment
+  can only walk and jump a short hight
+
+fish:
+  activated by drowning
+  can interact with environment
+  can swim and flop on land (can't interact with environment on land)
+
+bird:
+    activated by falling from a high place
+    can interact with environment
+
+worm:
+    activated by being crushed
+    can't interact with environment
+    can squeeze into tight spaces
+
+all animals can set checkpoints. When respawning the user can select any active
+checkpoint.
+

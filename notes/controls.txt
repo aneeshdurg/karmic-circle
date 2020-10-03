@@ -1,0 +1,13 @@
+Human:
+l,r to walk left and right, d to interact, u to jump
+
+Fish:
+    in water: u,d,l,r to swim in any direction
+    on ground: l,r to flop left and right
+    touch to interact
+
+Bird:
+    l,r to hop left and right, u to fly, d to interact
+
+worm:
+    l,r to inch left and right
