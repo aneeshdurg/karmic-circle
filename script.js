@@ -219,6 +219,79 @@ class Level {
     }
 }
 
+STATE = {
+    HUMAN: 0,
+    FISH: 1,
+    BIRD: 2,
+    WORM: 3,
+}
+
+class Game {
+    player_coords = [0, 4];
+    player_velocity = [0, 0];
+
+    constructor(canvas) {
+        const margin = 5;
+        canvas.width = 200 + margin * 2;
+        canvas.height = 200 + margin * 2;
+        const ctx = canvas.getContext("2d");
+        ctx.translate(5, 5);
+
+        this.params = new DrawParams(ctx, 20, 20);
+        this.level = new Level("start");
+
+        this.player_coords[0] *= this.params.cell_width;
+        this.player_coords[1] *= this.params.cell_height;
+
+        this.player_height = 3 * this.params.cell_height / 4;
+        this.player_width = this.params.cell_width / 5;
+
+        this.gravity = this.params.cell_height / 10;
+    }
+
+    update_physics() {
+        // This will control moving platforms:
+        // this.level.tick();
+
+        const feetcoords = [this.player_coords[0], this.player_coords[1] + this.player_height];
+        const feetx = Math.floor(feetcoords[0] / this.params.cell_width);
+        const feety = Math.floor(feetcoords[1] / this.params.cell_height);
+        console.log(feetx, feety);
+        const feetcell = this.level.get_cell(feetx, feety);
+        console.log(feetcell);
+        if (feetcell != CELLTYPES.GROUND)
+            this.player_velocity[1] += this.gravity;
+        else
+            this.player_velocity[1] = 0;
+
+        this.player_coords[0] += this.player_velocity[0];
+        this.player_coords[1] += this.player_velocity[1];
+    }
+
+    draw_player() {
+        this.params.ctx.fillStyle = "#FF0000";
+        this.params.ctx.fillRect(
+            this.player_coords[0],
+            this.player_coords[1],
+            this.player_width,
+            this.player_height
+        );
+    }
+
+    async run() {
+        await this.level.initialize();
+        const that = this;
+        function render() {
+            that.update_physics();
+            that.level.drawLevel(that.params);
+            that.draw_player();
+            setTimeout(render, 1000);
+        }
+
+        render();
+    }
+}
+
 /**
  * buffer 0 - draw static parts of level
  * while on this level:

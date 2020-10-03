@@ -3,18 +3,7 @@
 <script src="script.js"></script>
 <script>
     document.addEventListener("DOMContentLoaded", async () => {
-        const start = new Level("start");
-
-        const canvas = document.getElementById("display");
-        const margin = 5;
-        canvas.width = 200 + margin * 2;
-        canvas.height = 200 + margin * 2;
-        const ctx = canvas.getContext("2d");
-        ctx.translate(5, 5);
-
-        const params = new DrawParams(ctx, 20, 20);
-
-        await start.initialize();
-        start.drawLevel(params);
+        const game = new Game(document.getElementById("display"));
+        game.run();
     });
 </script>
