@@ -230,7 +230,20 @@ class Game {
     player_coords = [0, 4];
     player_velocity = [0, 0];
 
-    constructor(canvas) {
+    constructor(container) {
+        const canvas = document.createElement("canvas");
+        container.appendChild(canvas);
+
+        this.keymap = new Map();
+        const that = this;
+        document.addEventListener("keydown", e => {
+            if (!that.keymap.has(e.key))
+                that.keymap.set(e.key, (new Date()).getTime());
+        });
+        document.addEventListener("keyup", e => {
+            that.keymap.delete(e.key);
+        });
+
         const margin = 5;
         canvas.width = 200 + margin * 2;
         canvas.height = 200 + margin * 2;
@@ -252,20 +265,37 @@ class Game {
     update_physics() {
         // This will control moving platforms:
         // this.level.tick();
-
         const feetcoords = [this.player_coords[0], this.player_coords[1] + this.player_height];
         const feetx = Math.floor(feetcoords[0] / this.params.cell_width);
         const feety = Math.floor(feetcoords[1] / this.params.cell_height);
-        console.log(feetx, feety);
         const feetcell = this.level.get_cell(feetx, feety);
-        console.log(feetcell);
         if (feetcell != CELLTYPES.GROUND)
             this.player_velocity[1] += this.gravity;
-        else
+        else {
             this.player_velocity[1] = 0;
+            this.player_coords[1] = feety * this.params.cell_height - this.player_height;
+        }
+
+        if (this.keymap.has("ArrowRight"))
+            this.player_velocity[0] += this.params.cell_width / 5;
+        if (this.keymap.has("ArrowLeft"))
+            this.player_velocity[0] -= this.params.cell_width / 5;
+
+        const headcoords = [this.player_coords[0] + this.player_width, this.player_coords[1]];
+        const headx = Math.floor(headcoords[0] / this.params.cell_width);
+        const heady = Math.floor(headcoords[1] / this.params.cell_height);
+        const headcell = this.level.get_cell(headx, heady);
+        if (headcell == CELLTYPES.GROUND) {
+            this.player_velocity[0] = 0;
+            this.player_coords[0] = headx * this.params.cell_width - this.player_width;
+        }
+
+
 
         this.player_coords[0] += this.player_velocity[0];
         this.player_coords[1] += this.player_velocity[1];
+
+        this.player_velocity[0] = 0;
     }
 
     draw_player() {
@@ -285,7 +315,7 @@ class Game {
             that.update_physics();
             that.level.drawLevel(that.params);
             that.draw_player();
-            setTimeout(render, 1000);
+            setTimeout(render, 100);
         }
 
         render();
