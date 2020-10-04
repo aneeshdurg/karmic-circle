@@ -231,6 +231,20 @@ class Level {
                 break;
             }
 
+            case '&': {
+                params.ctx.strokeStyle = "#000000";
+                const s_x = x * params.cell_width;
+                const s_y = y * params.cell_height;
+                params.ctx.moveTo(s_x, s_y + params.cell_height);
+                params.ctx.lineTo(s_x + params.cell_width / 6, s_y);
+                params.ctx.lineTo(s_x + params.cell_width / 3, s_y + params.cell_height);
+                params.ctx.lineTo(s_x + params.cell_width / 2, s_y);
+                params.ctx.lineTo(s_x + 2 * params.cell_width / 3, s_y + params.cell_height);
+                params.ctx.lineTo(s_x + 5 * params.cell_width / 6, s_y);
+                params.ctx.lineTo(s_x + params.cell_width, s_y + params.cell_height);
+                params.ctx.stroke();
+            }
+
             case '^': {
                 params.ctx.fillStyle = "#000000";
                 params.ctx.fillRect(
@@ -299,10 +313,11 @@ class Game {
         "level/start",
         "level/falling",
         "level/puzzle1",
-        "level/button"
+        "level/button",
+        "level/puzzle2",
     ]
 
-    levelidx = 3;
+    levelidx = 4;
 
     constructor(container) {
         const canvas = document.createElement("canvas");
