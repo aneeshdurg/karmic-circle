@@ -16,6 +16,5 @@ _ or [ or ] a boundry for a moving piece (i.e. ground connected to the boundry w
 % ground that's controlled by a button (on)
 @ ground that's controlled by a button (off)
 
-^ checkpoint
-\d id of level to connect to. The posistion will be maintined when crossing into
-a level. This must occur on the boundry of a level
+^ spawn
+# goal

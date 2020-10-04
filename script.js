@@ -56,10 +56,10 @@ CELLTYPES = {
     HBoundry: '/',
     VConnector: '|',
     VBoundry: '_',
-    CHECKPOINT: '^',
+    SPAWN: '^',
+    GOAL: '#',
     isKey: (c) => Boolean(c.match("[a-z]")),
     isLock: (c) => Boolean(c.match("[A-Z]")),
-    isPortal: (c) => Boolean(c.match("[0-9]")),
 }
 
 class Level {
@@ -143,6 +143,13 @@ class Level {
         return line[x];
     }
 
+    find_spawn() {
+        for (let y = 0; y < this.dimensions[1]; y++)
+            for (let x = 0; x < this.dimensions[0]; x++)
+                if (this.get_cell(x, y) == CELLTYPES.SPAWN)
+                    return [x, y];
+    }
+
     get_environ_cell(x, y) {
         const cell = this.get_cell(x, y);
         // TODO look at state of locks and conditional ground as well.
@@ -211,6 +218,12 @@ class Level {
                 break;
             }
 
+            case '#': {
+                params.ctx.fillStyle = "#FFD700";
+                rect();
+                break;
+            }
+
             default: {
                 // if (cell is uppercase letter)
                 // if (cell is lowercase letter)
@@ -229,10 +242,16 @@ class Level {
 }
 
 STATE = {
-    HUMAN: 0,
-    FISH: 1,
-    BIRD: 2,
-    WORM: 3,
+    HUMAN: "human",
+    FISH: "fish",
+    BIRD: "bird",
+    WORM: "worm",
+}
+
+CAUSES = {
+    DROWNING: 0,
+    FALLING: 1,
+    SUFFOCATE: 2,
 }
 
 class Game {
@@ -240,9 +259,18 @@ class Game {
     player_velocity = [0, 0];
     player_state = STATE.HUMAN;
 
+    spawn_point = [0, 0];
+
     constructor(container) {
         const canvas = document.createElement("canvas");
         container.appendChild(canvas);
+        const hud = document.createElement("div");
+        container.appendChild(hud);
+
+        this.hpbar = document.createElement("progress");
+        this.hpbar.max = 100;
+        this.hpbar.value = 100;
+        hud.appendChild(this.hpbar);
 
         this.keymap = new Map();
         const that = this;
@@ -270,10 +298,23 @@ class Game {
         this.player_coords[0] *= this.params.cell_width;
         this.player_coords[1] *= this.params.cell_height;
 
-        this.player_height = 3 * this.params.cell_height / 4;
-        this.player_width = this.params.cell_width / 5;
+        this.spawn_point = [...this.player_coords];
+
+        this.set_human_params();
 
         this.gravity = this.params.cell_height / 10;
+    }
+
+    set_human_params() {
+        this.player_state = STATE.HUMAN;
+        this.player_height = 3 * this.params.cell_height / 4;
+        this.player_width = this.params.cell_width / 5;
+    }
+
+    set_fish_params() {
+        this.player_state = STATE.FISH;
+        this.player_height = this.params.cell_height / 4;
+        this.player_width = 2 * this.params.cell_width / 3;
     }
 
     toCellCoords(screen_coords) {
@@ -352,17 +393,34 @@ class Game {
                 this.player_velocity[1] += this.gravity;
             } else {
                 this.player_velocity[1] = Math.min(this.player_velocity[1], 0);
-                if (this.keymap.has("ArrowUp") && this.player_state == STATE.HUMAN)
-                    this.player_velocity[1] -= this.params.cell_height / 2;
+                let jumpVel = this.params.cell_height / 2;
+                if (this.player_state == STATE.FISH)
+                    jumpVel /= 2;
+
+                if (this.keymap.has("ArrowUp"))
+                    this.player_velocity[1] -= jumpVel;
             }
         }
 
-        const inWater = this.level.get_environ_cell(...bbox.cell.bottom_left) == CELLTYPES.WATER;
+        const inWater = this.level.get_environ_cell(...bbox.cell.bottom_left_clip) == CELLTYPES.WATER;
 
         if (inWater) {
             this.player_velocity[1] -= this.gravity / 2;
-            if (this.player_state == STATE.FISH) // Fish aren't affect by gravity while in water
+            if (this.player_state == STATE.FISH) { // Fish aren't affect by gravity while in water
                 this.player_velocity[1] -= this.gravity / 2;
+                if (this.keymap.has("ArrowUp"))
+                    this.player_velocity[1] -= this.params.cell_height / 5;
+                if (this.keymap.has("ArrowDown"))
+                    this.player_velocity[1] += this.params.cell_height / 5;
+            } else {
+                this.hpbar.value--;
+                this.cause = CAUSES.DROWNING;
+            }
+        } else {
+            if (this.player_state == STATE.FISH) {
+                this.hpbar.value--;
+                this.cause = CAUSES.SUFFOCATE;
+            }
         }
 
         // add velocity
@@ -397,23 +455,92 @@ class Game {
     }
 
     draw_player() {
-        this.params.ctx.fillStyle = "#FF0000";
-        this.params.ctx.fillRect(
-            this.player_coords[0],
-            this.player_coords[1],
-            this.player_width,
-            this.player_height
-        );
+        if (this.player_state == STATE.HUMAN) {
+            this.params.ctx.fillStyle = "#FF0000";
+            this.params.ctx.fillRect(
+                this.player_coords[0],
+                this.player_coords[1],
+                this.player_width,
+                this.player_height
+            );
+        } else if (this.player_state == STATE.FISH) {
+            const positive_vel = this.player_velocity[0] >= 0;
+            const offset = positive_vel ? this.player_width / 3 : 0;
+            this.params.ctx.fillStyle = "#0000FF";
+            this.params.ctx.fillRect(
+                this.player_coords[0] + offset,
+                this.player_coords[1],
+                2 * this.player_width / 3,
+                this.player_height
+            );
+
+            this.params.ctx.beginPath();
+            if (positive_vel) {
+                this.params.ctx.moveTo(this.player_coords[0] + this.player_width / 3, this.player_coords[1] + this.player_height / 2);
+                this.params.ctx.lineTo(this.player_coords[0], this.player_coords[1]);
+                this.params.ctx.lineTo(this.player_coords[0], this.player_coords[1] + this.player_height);
+                this.params.ctx.fill();
+            } else {
+                this.params.ctx.moveTo(this.player_coords[0] + 2 * this.player_width / 3, this.player_coords[1] + this.player_height / 2);
+                this.params.ctx.lineTo(this.player_coords[0] + this.player_width, this.player_coords[1]);
+                this.params.ctx.lineTo(this.player_coords[0] + this.player_width, this.player_coords[1] + this.player_height);
+                this.params.ctx.fill();
+            }
+        }
+    }
+
+    setSpawn() {
+        const spawn_cell = this.level.find_spawn();
+        this.spawn_point = [spawn_cell[0] * this.params.cell_width, spawn_cell[1] * this.params.cell_height];
+    }
+
+    async reinit(level) {
+        this.level = new Level(level);
+        await this.level.initialize();
+        this.setSpawn();
+        this.set_human_params();
+        this.reset();
+    }
+
+    reset() {
+        this.keymap = new Map();
+        this.hpbar.value = 100;
+        this.player_coords = [...this.spawn_point];
     }
 
     async run() {
         await this.level.initialize();
         const that = this;
-        function render() {
+        async function render() {
             that.update_physics();
             that.level.drawLevel(that.params);
             that.draw_player();
-            setTimeout(render, 1000 / 30);
+            if (that.level.get_cell(...that.toCellCoords(that.player_coords)) == CELLTYPES.GOAL) {
+                alert("You did it!");
+                await that.reinit("start");
+                render();
+            } else if (that.hpbar.value == 0) {
+                if (that.cause == CAUSES.DROWNING)
+                    that.set_fish_params();
+                else if (that.cause == CAUSES.SUFFOCATE)
+                    that.set_human_params();
+
+                that.reset();
+
+                that.params.ctx.fillStyle = "#FF000050";
+                that.params.ctx.fillRect(
+                    0,
+                    0,
+                    that.params.ctx.canvas.width,
+                    that.params.ctx.canvas.height
+                );
+
+                alert(`You died! You shall be reborn as as ${that.player_state}`);
+
+                setTimeout(render, 5 * 1000 / 30);
+            } else {
+                setTimeout(render, 1000 / 30);
+            }
         }
 
         render();
