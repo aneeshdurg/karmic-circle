@@ -277,9 +277,54 @@ class Game {
     }
 
     toCellCoords(screen_coords) {
-            const raw_coords =  [screen_coords[0] / this.params.cell_width, screen_coords[1] / this.params.cell_height];
-            return raw_coords.map(c => Math.floor(c))
-        }
+        const raw_coords =  [screen_coords[0] / this.params.cell_width, screen_coords[1] / this.params.cell_height];
+        return raw_coords.map(c => Math.floor(c))
+    }
+
+    getPlayerBoundingBox() {
+        const top_left = [...this.player_coords];
+        const top_left_cell = this.toCellCoords(top_left);
+        const top_right = [this.player_coords[0] + this.player_width, this.player_coords[1]];
+        const top_right_cell = this.toCellCoords(top_right);
+
+        const bottom_left = [top_left[0], this.player_coords[1] + this.player_height];
+        const bottom_left_cell = this.toCellCoords(bottom_left);
+        const bottom_right = [top_right[0], this.player_coords[1] + this.player_height];
+        const bottom_right_cell = this.toCellCoords(bottom_right);
+
+        const bottom_left_clip = [top_left[0], this.player_coords[1] + this.player_height - 1];
+        const bottom_left_clip_cell = this.toCellCoords(bottom_left_clip);
+        const bottom_right_clip = [top_right[0], this.player_coords[1] + this.player_height - 1];
+        const bottom_right_clip_cell = this.toCellCoords(bottom_right_clip);
+
+        return {
+            screen: {
+                top_left: top_left,
+                top_right: top_right,
+                bottom_left: bottom_left,
+                bottom_right: bottom_right,
+                bottom_left_clip: bottom_left_clip,
+                bottom_right_clip: bottom_right_clip,
+            },
+            cell: {
+                top_left: top_left_cell,
+                top_right: top_right_cell,
+                bottom_left: bottom_left_cell,
+                bottom_right: bottom_right_cell,
+                bottom_left_clip: bottom_left_clip_cell,
+                bottom_right_clip: bottom_right_clip_cell,
+            },
+        };
+    }
+
+    playerIsClipping() {
+        const bbox = this.getPlayerBoundingBox();
+        const top_left_clip = this.level.get_environ_cell(...bbox.cell.top_left) == CELLTYPES.GROUND;
+        const top_right_clip = this.level.get_environ_cell(...bbox.cell.top_right) == CELLTYPES.GROUND;
+        const bottom_left_clip = this.level.get_environ_cell(...bbox.cell.bottom_left_clip) == CELLTYPES.GROUND;
+        const bottom_right_clip = this.level.get_environ_cell(...bbox.cell.bottom_right_clip) == CELLTYPES.GROUND;
+        return (top_left_clip || top_right_clip || bottom_left_clip || bottom_right_clip);
+    }
 
     update_physics() {
         // This will control moving platforms:
@@ -290,57 +335,65 @@ class Game {
         if (this.keymap.has("ArrowLeft"))
             this.player_velocity[0] -= this.params.cell_width / 5;
 
+        const bbox = this.getPlayerBoundingBox();
 
-        const top_left = [...this.player_coords];
-        const top_left_cell = this.toCellCoords(top_left);
-        const top_right = [this.player_coords[0] + this.player_width, this.player_coords[1]];
-        const top_right_cell = this.toCellCoords(top_right);
-        const bottom_left = [this.player_coords[0], this.player_coords[1] + this.player_height];
-        const bottom_left_cell = this.toCellCoords(bottom_left);
-        const bottom_right = [this.player_coords[0] + this.player_width, this.player_coords[1] + this.player_height];
-        const bottom_right_cell = this.toCellCoords(bottom_right);
 
         { // check corners for collision with sides
-            if (this.level.get_environ_cell(...top_left_cell) == CELLTYPES.GROUND ||
-                this.level.get_environ_cell(bottom_left_cell[0], bottom_left_cell[1] - 1) == CELLTYPES.GROUND)
+            if (this.level.get_environ_cell(...bbox.cell.top_left) == CELLTYPES.GROUND ||
+                this.level.get_environ_cell(bbox.cell.bottom_left[0], bbox.cell.bottom_left[1] - 1) == CELLTYPES.GROUND)
                 this.player_velocity[0] = Math.max(this.player_velocity[0], 0);
-            if (this.level.get_environ_cell(...top_right_cell) == CELLTYPES.GROUND)
+            if (this.level.get_environ_cell(...bbox.cell.top_right) == CELLTYPES.GROUND)
                 this.player_velocity[0] = Math.min(this.player_velocity[0], 0);
         }
 
         { // check corners for collision with ground
-            // TODO implement jump
-            if (this.level.get_environ_cell(...bottom_left_cell) != CELLTYPES.GROUND &&
-                this.level.get_environ_cell(...bottom_right_cell) != CELLTYPES.GROUND) {
+            if (this.level.get_environ_cell(...bbox.cell.bottom_left) != CELLTYPES.GROUND &&
+                this.level.get_environ_cell(...bbox.cell.bottom_right) != CELLTYPES.GROUND) {
                 this.player_velocity[1] += this.gravity;
-                // prevent going below the floor
-                this.player_coords[1] = bottom_left_cell[1] * this.params.cell_height - this.player_height;
             } else {
                 this.player_velocity[1] = Math.min(this.player_velocity[1], 0);
-                if (this.keymap.has("ArrowUp"))
-                    this.player_velocity[1] -= this.params.cell_height / 5;
+                if (this.keymap.has("ArrowUp") && this.player_state == STATE.HUMAN)
+                    this.player_velocity[1] -= this.params.cell_height / 2;
             }
         }
 
-        const inWater = this.level.get_environ_cell(...bottom_left_cell) == CELLTYPES.WATER;
+        const inWater = this.level.get_environ_cell(...bbox.cell.bottom_left) == CELLTYPES.WATER;
 
         if (inWater) {
-            console.log(this.player_velocity);
             this.player_velocity[1] -= this.gravity / 2;
             if (this.player_state == STATE.FISH) // Fish aren't affect by gravity while in water
                 this.player_velocity[1] -= this.gravity / 2;
         }
 
-        this.player_coords[0] += this.player_velocity[0];
-        this.player_coords[1] += this.player_velocity[1];
+        // add velocity
+        const that = this;
+        function add_velocity(velocity) {
+            that.player_coords = that.player_coords.map((x, i) => x + velocity[i]);
+        }
 
-        console.log(this.player_velocity);
+        add_velocity(this.player_velocity);
+
+        // prevent clipping
+        let count = 0;
+        while (this.playerIsClipping()) {
+            add_velocity(this.player_velocity.map(x => -0.01 * x));
+            count++;
+            if (count > 100) {
+                console.log("???", this.player_coords);
+                break;
+            }
+        }
 
         this.player_velocity[0] = 0;
         if (this.player_state == STATE.FISH && inWater)
             this.player_velocity[1] = 0;
-        else
-            this.player_velocity[1] = Math.max(this.player_velocity[1], 0);
+        else {
+            if (this.player_velocity[1] < 0) {
+                this.player_velocity[1] /= 2;
+                if (this.player_velocity[1] < -1 * this.params.cell_height / 100)
+                    this.player_velocity[1] = 0;
+            }
+        }
     }
 
     draw_player() {
@@ -360,7 +413,7 @@ class Game {
             that.update_physics();
             that.level.drawLevel(that.params);
             that.draw_player();
-            setTimeout(render, 100);
+            setTimeout(render, 1000 / 30);
         }
 
         render();
