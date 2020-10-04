@@ -249,6 +249,7 @@ class Level {
                 params.ctx.lineTo(s_x + 5 * params.cell_width / 6, s_y);
                 params.ctx.lineTo(s_x + params.cell_width, s_y + params.cell_height);
                 params.ctx.stroke();
+                break;
             }
 
             case '+': {
@@ -322,10 +323,10 @@ class Game {
         "level/puzzle1",
         "level/button",
         "level/puzzle2",
-        // "level/puzzle3",
+        "level/puzzle3",
     ]
 
-    levelidx = 0;
+    levelidx = 5;
 
     constructor(container) {
         const canvas = document.createElement("canvas");
@@ -353,8 +354,8 @@ class Game {
         });
 
         const margin = 5;
-        canvas.width = 200 + margin * 2;
-        canvas.height = 200 + margin * 2;
+        canvas.width = 500 + margin * 2;
+        canvas.height = 500 + margin * 2;
         const ctx = canvas.getContext("2d");
         ctx.translate(5, 5);
 
@@ -367,8 +368,6 @@ class Game {
         this.spawn_point = [...this.player_coords];
 
         this.set_human_params();
-
-        this.gravity = this.params.cell_height / 10;
     }
 
     set_human_params() {
@@ -440,8 +439,10 @@ class Game {
     }
 
     keyActive(key) {
-        if (this.keymap.has(key) && ((new Date()).getTime() - this.keymap.get(key)) < 100)
+        if (this.keymap.has(key) && ((new Date()).getTime() - this.keymap.get(key)) < 100) {
+            console.log((new Date()).getTime() - this.keymap.get(key));
             return true;
+        }
     }
 
     update_physics() {
@@ -471,7 +472,7 @@ class Game {
 
 
         { // check corners for collision with ground
-            if (bl_cell == CELLTYPES.SPIKE || br_cell == CELLTYPES.SPIKE) {
+            if (bl_cell == CELLTYPES.SPIKE && br_cell == CELLTYPES.SPIKE) {
                 this.hpbar.value = 0;
                 this.cause = CAUSES.SPIKE;
             } else if (bl_cell != CELLTYPES.GROUND && br_cell != CELLTYPES.GROUND) {
@@ -482,6 +483,7 @@ class Game {
 
             } else {
                 if (this.player_velocity[1] > 7 * this.gravity) {
+                    console.log(this.player_velocity[1], this.gravity, this.params);
                     this.cause = CAUSES.FALLING;
                     this.hpbar.value = 0;
                 }
@@ -625,6 +627,15 @@ class Game {
         this.spawn_point = [spawn_cell[0] * this.params.cell_width, spawn_cell[1] * this.params.cell_height];
     }
 
+    set_params() {
+        this.params.cell_width = this.params.ctx.canvas.width / this.level.dimensions[0];
+        this.params.cell_height = this.params.ctx.canvas.height / this.level.dimensions[1];
+        this.gravity = this.params.cell_height / 10;
+        this.setSpawn();
+        this.set_human_params();
+        this.reset();
+    }
+
     async nextlevel() {
         this.levelidx++;
         if (this.levelidx >= this.levellist.length) {
@@ -634,11 +645,7 @@ class Game {
 
         this.level = new Level(this.levellist[this.levelidx]);
         await this.level.initialize();
-        this.params.cell_width = this.params.ctx.canvas.width / this.level.dimensions[0];
-        this.params.cell_height = this.params.ctx.canvas.height / this.level.dimensions[1];
-        this.setSpawn();
-        this.set_human_params();
-        this.reset();
+        this.set_params();
     }
 
     reset() {
@@ -649,6 +656,7 @@ class Game {
 
     async run() {
         await this.level.initialize();
+        this.set_params();
         const that = this;
         async function render() {
             that.update_physics();
