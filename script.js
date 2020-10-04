@@ -56,6 +56,7 @@ CELLTYPES = {
     HBoundry: '/',
     VConnector: '|',
     VBoundry: '_',
+    SPIKE: '&',
     SPAWN: '^',
     GOAL: '#',
     isKey: (c) => Boolean(c.match("[a-z]")),
@@ -153,6 +154,13 @@ class Level {
     get_environ_cell(x, y) {
         const cell = this.get_cell(x, y);
         // TODO look at state of locks and conditional ground as well.
+
+        if (cell == CELLTYPES.ONGROUND)
+            return CELLTYPES.GROUND;
+
+        if (cell == CELLTYPES.SPIKE)
+            return cell;
+
         if (cell != CELLTYPES.GROUND && cell != CELLTYPES.WATER)
             return CELLTYPES.AIR;
 
@@ -252,6 +260,7 @@ CAUSES = {
     DROWNING: 0,
     FALLING: 1,
     SUFFOCATE: 2,
+    SPIKE: 3,
 }
 
 class Game {
@@ -262,8 +271,10 @@ class Game {
     spawn_point = [0, 0];
 
     levellist = [
-        "start",
-        "falling",
+        "level/start",
+        "level/falling",
+        "level/puzzle1",
+        "level/button"
     ]
 
     levelidx = 0;
@@ -380,6 +391,11 @@ class Game {
         return (top_left_clip || top_right_clip || bottom_left_clip || bottom_right_clip);
     }
 
+    keyActive(key) {
+        if (this.keymap.has(key) && ((new Date()).getTime() - this.keymap.get(key)) < 100)
+            return true;
+    }
+
     update_physics() {
         // This will control moving platforms:
         // this.level.tick();
@@ -391,30 +407,39 @@ class Game {
 
         const bbox = this.getPlayerBoundingBox();
 
+        const tl_cell = this.level.get_environ_cell(...bbox.cell.top_left);
+        const tr_cell = this.level.get_environ_cell(...bbox.cell.top_right);
+        const bl_cell = this.level.get_environ_cell(...bbox.cell.bottom_left);
+        const br_cell = this.level.get_environ_cell(...bbox.cell.bottom_right);
 
         { // check corners for collision with sides
-            if (this.level.get_environ_cell(...bbox.cell.top_left) == CELLTYPES.GROUND ||
-                this.level.get_environ_cell(bbox.cell.bottom_left[0], bbox.cell.bottom_left[1] - 1) == CELLTYPES.GROUND)
+            if (tl_cell == CELLTYPES.GROUND ||
+                this.level.get_environ_cell(...bbox.cell.bottom_left_clip) == CELLTYPES.GROUND)
                 this.player_velocity[0] = Math.max(this.player_velocity[0], 0);
-            if (this.level.get_environ_cell(...bbox.cell.top_right) == CELLTYPES.GROUND)
+            if (tr_cell == CELLTYPES.GROUND)
                 this.player_velocity[0] = Math.min(this.player_velocity[0], 0);
         }
 
+
+
         { // check corners for collision with ground
-            if (this.level.get_environ_cell(...bbox.cell.bottom_left) != CELLTYPES.GROUND &&
-                this.level.get_environ_cell(...bbox.cell.bottom_right) != CELLTYPES.GROUND) {
+            if (bl_cell == CELLTYPES.SPIKE || br_cell == CELLTYPES.SPIKE) {
+                this.hpbar.value = 0;
+                this.cause = CAUSES.SPIKE;
+            } else if (bl_cell != CELLTYPES.GROUND && br_cell != CELLTYPES.GROUND) {
                 this.player_velocity[1] += this.gravity;
 
                 if (this.player_state == STATE.BIRD && this.keymap.has("ArrowUp"))
                     this.player_velocity[1] -= 2 * this.gravity;
+
             } else {
-                if (this.player_velocity[1] > 5 * this.gravity) {
+                if (this.player_velocity[1] > 7 * this.gravity) {
                     this.cause = CAUSES.FALLING;
                     this.hpbar.value = 0;
                 }
 
                 this.player_velocity[1] = Math.min(this.player_velocity[1], 0);
-                let jumpVel = this.params.cell_height / 2;
+                let jumpVel = this.params.cell_height;
                 if (this.player_state == STATE.FISH)
                     jumpVel /= 2;
 
@@ -426,19 +451,19 @@ class Game {
         const inWater = this.level.get_environ_cell(...bbox.cell.bottom_left_clip) == CELLTYPES.WATER;
 
         if (inWater) {
-            this.player_velocity[1] -= this.gravity / 2;
+            this.player_velocity[1] -= 3 * this.gravity / 4;
             if (this.player_state == STATE.FISH) { // Fish aren't affect by gravity while in water
                 this.player_velocity[1] -= this.gravity / 2;
                 if (this.keymap.has("ArrowUp"))
                     this.player_velocity[1] -= this.params.cell_height / 5;
                 if (this.keymap.has("ArrowDown"))
                     this.player_velocity[1] += this.params.cell_height / 5;
-            } else {
+            } else if (this.hpbar.value > 0) {
                 this.hpbar.value--;
                 this.cause = CAUSES.DROWNING;
             }
         } else {
-            if (this.player_state == STATE.FISH) {
+            if (this.player_state == STATE.FISH && this.hpbar.value > 0) {
                 this.hpbar.value--;
                 this.cause = CAUSES.SUFFOCATE;
             }
@@ -455,10 +480,18 @@ class Game {
         // prevent clipping
         let count = 0;
         while (this.playerIsClipping()) {
-            add_velocity(this.player_velocity.map(x => -0.01 * x));
+            add_velocity([this.player_velocity[0] * -0.01, 0]);
             count++;
             if (count > 100) {
-                console.log("???", this.player_coords);
+                break;
+            }
+        }
+
+        count = 0;
+        while (this.playerIsClipping()) {
+            add_velocity([0, this.player_velocity[1] * -0.01]);
+            count++;
+            if (count > 100) {
                 break;
             }
         }
@@ -533,6 +566,8 @@ class Game {
 
         this.level = new Level(this.levellist[this.levelidx]);
         await this.level.initialize();
+        this.params.cell_width = this.params.ctx.canvas.width / this.level.dimensions[0];
+        this.params.cell_height = this.params.ctx.canvas.height / this.level.dimensions[1];
         this.setSpawn();
         this.set_human_params();
         this.reset();
@@ -558,7 +593,7 @@ class Game {
             } else if (that.hpbar.value == 0) {
                 if (that.cause == CAUSES.DROWNING)
                     that.set_fish_params();
-                else if (that.cause == CAUSES.SUFFOCATE)
+                else if (that.cause == CAUSES.SUFFOCATE || that.cause == CAUSES.SPIKE)
                     that.set_human_params();
                 else if (that.cause == CAUSES.FALLING)
                     that.set_bird_params();
@@ -571,9 +606,10 @@ class Game {
                     that.params.ctx.canvas.height
                 );
 
+                that.reset();
                 setTimeout(() => {
                     alert(`You died! You shall be reborn as as ${that.player_state}`);
-                    that.reset();
+                    that.keymap = new Map();
 
                     setTimeout(render, 5 * 1000 / 30);
                 }, 100);
