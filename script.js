@@ -134,13 +134,22 @@ class Level {
 
     get_cell(x, y) {
         if (x < 0 || y < 0 || y >= this.lines.length)
-            return CELLTYPES.AIR;
+            return CELLTYPES.GROUND;
 
         const line = this.lines[y];
         if (x >= line.length)
-            return CELLTYPES.AIR;
+            return CELLTYPES.GROUND;
 
         return line[x];
+    }
+
+    get_environ_cell(x, y) {
+        const cell = this.get_cell(x, y);
+        // TODO look at state of locks and conditional ground as well.
+        if (cell != CELLTYPES.GROUND && cell != CELLTYPES.WATER)
+            return CELLTYPES.AIR;
+
+        return cell;
     }
 
     draw_cell(params, x, y) {
@@ -229,6 +238,7 @@ STATE = {
 class Game {
     player_coords = [0, 4];
     player_velocity = [0, 0];
+    player_state = STATE.HUMAN;
 
     constructor(container) {
         const canvas = document.createElement("canvas");
@@ -237,10 +247,14 @@ class Game {
         this.keymap = new Map();
         const that = this;
         document.addEventListener("keydown", e => {
+            if (e.key.includes("Arrow"))
+                e.preventDefault();
             if (!that.keymap.has(e.key))
                 that.keymap.set(e.key, (new Date()).getTime());
         });
         document.addEventListener("keyup", e => {
+            if (e.key.includes("Arrow"))
+                e.preventDefault();
             that.keymap.delete(e.key);
         });
 
@@ -262,40 +276,71 @@ class Game {
         this.gravity = this.params.cell_height / 10;
     }
 
+    toCellCoords(screen_coords) {
+            const raw_coords =  [screen_coords[0] / this.params.cell_width, screen_coords[1] / this.params.cell_height];
+            return raw_coords.map(c => Math.floor(c))
+        }
+
     update_physics() {
         // This will control moving platforms:
         // this.level.tick();
-        const feetcoords = [this.player_coords[0], this.player_coords[1] + this.player_height];
-        const feetx = Math.floor(feetcoords[0] / this.params.cell_width);
-        const feety = Math.floor(feetcoords[1] / this.params.cell_height);
-        const feetcell = this.level.get_cell(feetx, feety);
-        if (feetcell != CELLTYPES.GROUND)
-            this.player_velocity[1] += this.gravity;
-        else {
-            this.player_velocity[1] = 0;
-            this.player_coords[1] = feety * this.params.cell_height - this.player_height;
-        }
 
         if (this.keymap.has("ArrowRight"))
             this.player_velocity[0] += this.params.cell_width / 5;
         if (this.keymap.has("ArrowLeft"))
             this.player_velocity[0] -= this.params.cell_width / 5;
 
-        const headcoords = [this.player_coords[0] + this.player_width, this.player_coords[1]];
-        const headx = Math.floor(headcoords[0] / this.params.cell_width);
-        const heady = Math.floor(headcoords[1] / this.params.cell_height);
-        const headcell = this.level.get_cell(headx, heady);
-        if (headcell == CELLTYPES.GROUND) {
-            this.player_velocity[0] = 0;
-            this.player_coords[0] = headx * this.params.cell_width - this.player_width;
+
+        const top_left = [...this.player_coords];
+        const top_left_cell = this.toCellCoords(top_left);
+        const top_right = [this.player_coords[0] + this.player_width, this.player_coords[1]];
+        const top_right_cell = this.toCellCoords(top_right);
+        const bottom_left = [this.player_coords[0], this.player_coords[1] + this.player_height];
+        const bottom_left_cell = this.toCellCoords(bottom_left);
+        const bottom_right = [this.player_coords[0] + this.player_width, this.player_coords[1] + this.player_height];
+        const bottom_right_cell = this.toCellCoords(bottom_right);
+
+        { // check corners for collision with sides
+            if (this.level.get_environ_cell(...top_left_cell) == CELLTYPES.GROUND ||
+                this.level.get_environ_cell(bottom_left_cell[0], bottom_left_cell[1] - 1) == CELLTYPES.GROUND)
+                this.player_velocity[0] = Math.max(this.player_velocity[0], 0);
+            if (this.level.get_environ_cell(...top_right_cell) == CELLTYPES.GROUND)
+                this.player_velocity[0] = Math.min(this.player_velocity[0], 0);
         }
 
+        { // check corners for collision with ground
+            // TODO implement jump
+            if (this.level.get_environ_cell(...bottom_left_cell) != CELLTYPES.GROUND &&
+                this.level.get_environ_cell(...bottom_right_cell) != CELLTYPES.GROUND) {
+                this.player_velocity[1] += this.gravity;
+                // prevent going below the floor
+                this.player_coords[1] = bottom_left_cell[1] * this.params.cell_height - this.player_height;
+            } else {
+                this.player_velocity[1] = Math.min(this.player_velocity[1], 0);
+                if (this.keymap.has("ArrowUp"))
+                    this.player_velocity[1] -= this.params.cell_height / 5;
+            }
+        }
 
+        const inWater = this.level.get_environ_cell(...bottom_left_cell) == CELLTYPES.WATER;
+
+        if (inWater) {
+            console.log(this.player_velocity);
+            this.player_velocity[1] -= this.gravity / 2;
+            if (this.player_state == STATE.FISH) // Fish aren't affect by gravity while in water
+                this.player_velocity[1] -= this.gravity / 2;
+        }
 
         this.player_coords[0] += this.player_velocity[0];
         this.player_coords[1] += this.player_velocity[1];
 
+        console.log(this.player_velocity);
+
         this.player_velocity[0] = 0;
+        if (this.player_state == STATE.FISH && inWater)
+            this.player_velocity[1] = 0;
+        else
+            this.player_velocity[1] = Math.max(this.player_velocity[1], 0);
     }
 
     draw_player() {
