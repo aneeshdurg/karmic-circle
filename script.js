@@ -274,8 +274,13 @@ class Level {
             }
 
             case '#': {
-                params.ctx.fillStyle = "#FFD700";
-                rect();
+                params.ctx.drawImage(
+                    document.getElementById("goalsprite"),
+                    x * params.cell_width,
+                    y * params.cell_height,
+                    params.cell_width,
+                    params.cell_height
+                );
                 break;
             }
 
@@ -326,7 +331,7 @@ class Game {
         "level/puzzle3",
     ]
 
-    levelidx = 5;
+    levelidx = 0;
 
     constructor(container) {
         const canvas = document.createElement("canvas");
@@ -368,6 +373,10 @@ class Game {
         this.spawn_point = [...this.player_coords];
 
         this.set_human_params();
+
+        this.birdsprite = document.getElementById("birdsprite");
+        this.fishsprite = document.getElementById("fishsprite");
+        this.humansprite = document.getElementById("humansprite");
     }
 
     set_human_params() {
@@ -579,40 +588,71 @@ class Game {
 
     draw_player() {
         if (this.player_state == STATE.HUMAN) {
-            this.params.ctx.fillStyle = "#FF0000";
-            this.params.ctx.fillRect(
+            this.params.ctx.drawImage(
+                this.humansprite,
                 this.player_coords[0],
                 this.player_coords[1],
                 this.player_width,
                 this.player_height
             );
+            // this.params.ctx.fillStyle = "#FF0000";
+            // this.params.ctx.fillRect(
+            //     this.player_coords[0],
+            //     this.player_coords[1],
+            //     this.player_width,
+            //     this.player_height
+            // );
         } else if (this.player_state == STATE.FISH) {
-            const positive_vel = this.player_velocity[0] >= 0;
-            const offset = positive_vel ? this.player_width / 3 : 0;
-            this.params.ctx.fillStyle = "#0000FF";
-            this.params.ctx.fillRect(
-                this.player_coords[0] + offset,
+            this.params.ctx.drawImage(
+                this.fishsprite,
+                this.player_coords[0],
                 this.player_coords[1],
-                2 * this.player_width / 3,
+                this.player_width,
                 this.player_height
-            );
+            )
+            // const positive_vel = this.player_velocity[0] >= 0;
+            // const offset = positive_vel ? this.player_width / 3 : 0;
+            // this.params.ctx.fillStyle = "#0000FF";
+            // this.params.ctx.fillRect(
+            //     this.player_coords[0] + offset,
+            //     this.player_coords[1],
+            //     2 * this.player_width / 3,
+            //     this.player_height
+            // );
 
-            this.params.ctx.beginPath();
-            if (positive_vel) {
-                this.params.ctx.moveTo(this.player_coords[0] + this.player_width / 3, this.player_coords[1] + this.player_height / 2);
-                this.params.ctx.lineTo(this.player_coords[0], this.player_coords[1]);
-                this.params.ctx.lineTo(this.player_coords[0], this.player_coords[1] + this.player_height);
-                this.params.ctx.fill();
-            } else {
-                this.params.ctx.moveTo(this.player_coords[0] + 2 * this.player_width / 3, this.player_coords[1] + this.player_height / 2);
-                this.params.ctx.lineTo(this.player_coords[0] + this.player_width, this.player_coords[1]);
-                this.params.ctx.lineTo(this.player_coords[0] + this.player_width, this.player_coords[1] + this.player_height);
-                this.params.ctx.fill();
-            }
+            // this.params.ctx.beginPath();
+            // if (positive_vel) {
+            //     this.params.ctx.moveTo(this.player_coords[0] + this.player_width / 3, this.player_coords[1] + this.player_height / 2);
+            //     this.params.ctx.lineTo(this.player_coords[0], this.player_coords[1]);
+            //     this.params.ctx.lineTo(this.player_coords[0], this.player_coords[1] + this.player_height);
+            //     this.params.ctx.fill();
+            // } else {
+            //     this.params.ctx.moveTo(this.player_coords[0] + 2 * this.player_width / 3, this.player_coords[1] + this.player_height / 2);
+            //     this.params.ctx.lineTo(this.player_coords[0] + this.player_width, this.player_coords[1]);
+            //     this.params.ctx.lineTo(this.player_coords[0] + this.player_width, this.player_coords[1] + this.player_height);
+            //     this.params.ctx.fill();
+            // }
         } else if (this.player_state == STATE.BIRD) {
+            // **********
+            // ******   *
+            //  *****    
+            //  *****  **
+            //         **
+            //         **
+            // ** *******
+            // ** *******
+            // ** *******
+
             // TODO this doesn't look like a bird!!!
-            this.params.ctx.fillStyle = "#FF00FF";
-            this.params.ctx.fillRect(
+            // this.params.ctx.fillStyle = "#FF00FF";
+            // this.params.ctx.fillRect(
+            //     this.player_coords[0],
+            //     this.player_coords[1],
+            //     this.player_width,
+            //     this.player_height
+            // );
+            this.params.ctx.drawImage(
+                this.birdsprite,
                 this.player_coords[0],
                 this.player_coords[1],
                 this.player_width,

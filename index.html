@@ -1,17 +1,43 @@
-<div id="display"></div>
+<div id="display">
+    <div id="start">
+    <h1>Karmic Circle</h1>
+    Movement - arrow keys
+    Interact with buttons - down (only as a human)
+    Fly - hold up (only as a bird)
+
+    Try to get to the smilely face in all the levels!
+
+    <button id="startbtn">Click to start!</button>
+    </div>
+</div>
 <script src="script.js"></script>
 <style>
 canvas {
-    width: 50%;
+    height: 100%;
 }
 
 progress {
+    width: 100%;
+}
+
+#display {
     width: 50%;
+    height: 80%;
 }
 </style>
+<img src="bird.png" style="display: none;" id="birdsprite"></img>
+<img src="fish.png" style="display: none;" id="fishsprite"></img>
+<img src="human.png" style="display: none;" id="humansprite"></img>
+<img src="goal.png" style="display: none;" id="goalsprite"></img>
+<audio src="theme.mp3" style="display: none;" id="music"></img>
 <script>
     document.addEventListener("DOMContentLoaded", async () => {
-        const game = new Game(document.getElementById("display"));
-        game.run();
+        document.getElementById("startbtn").addEventListener("click", () => {
+            document.getElementById("start").remove();
+            document.getElementById("music").loop = true;
+            document.getElementById("music").play();
+            const game = new Game(document.getElementById("display"));
+            game.run();
+        });
     });
 </script>
