@@ -261,6 +261,13 @@ class Game {
 
     spawn_point = [0, 0];
 
+    levellist = [
+        "start",
+        "falling",
+    ]
+
+    levelidx = 0;
+
     constructor(container) {
         const canvas = document.createElement("canvas");
         container.appendChild(canvas);
@@ -293,7 +300,7 @@ class Game {
         ctx.translate(5, 5);
 
         this.params = new DrawParams(ctx, 20, 20);
-        this.level = new Level("start");
+        this.level = new Level(this.levellist[this.levelidx]);
 
         this.player_coords[0] *= this.params.cell_width;
         this.player_coords[1] *= this.params.cell_height;
@@ -313,6 +320,12 @@ class Game {
 
     set_fish_params() {
         this.player_state = STATE.FISH;
+        this.player_height = this.params.cell_height / 4;
+        this.player_width = 2 * this.params.cell_width / 3;
+    }
+
+    set_bird_params() {
+        this.player_state = STATE.BIRD;
         this.player_height = this.params.cell_height / 4;
         this.player_width = 2 * this.params.cell_width / 3;
     }
@@ -391,7 +404,15 @@ class Game {
             if (this.level.get_environ_cell(...bbox.cell.bottom_left) != CELLTYPES.GROUND &&
                 this.level.get_environ_cell(...bbox.cell.bottom_right) != CELLTYPES.GROUND) {
                 this.player_velocity[1] += this.gravity;
+
+                if (this.player_state == STATE.BIRD && this.keymap.has("ArrowUp"))
+                    this.player_velocity[1] -= 2 * this.gravity;
             } else {
+                if (this.player_velocity[1] > 5 * this.gravity) {
+                    this.cause = CAUSES.FALLING;
+                    this.hpbar.value = 0;
+                }
+
                 this.player_velocity[1] = Math.min(this.player_velocity[1], 0);
                 let jumpVel = this.params.cell_height / 2;
                 if (this.player_state == STATE.FISH)
@@ -486,6 +507,15 @@ class Game {
                 this.params.ctx.lineTo(this.player_coords[0] + this.player_width, this.player_coords[1] + this.player_height);
                 this.params.ctx.fill();
             }
+        } else if (this.player_state == STATE.BIRD) {
+            // TODO this doesn't look like a bird!!!
+            this.params.ctx.fillStyle = "#FF00FF";
+            this.params.ctx.fillRect(
+                this.player_coords[0],
+                this.player_coords[1],
+                this.player_width,
+                this.player_height
+            );
         }
     }
 
@@ -494,8 +524,14 @@ class Game {
         this.spawn_point = [spawn_cell[0] * this.params.cell_width, spawn_cell[1] * this.params.cell_height];
     }
 
-    async reinit(level) {
-        this.level = new Level(level);
+    async nextlevel() {
+        this.levelidx++;
+        if (this.levelidx >= this.levellist.length) {
+            alert("You beat the game!");
+            throw new Error("whatever");
+        }
+
+        this.level = new Level(this.levellist[this.levelidx]);
         await this.level.initialize();
         this.setSpawn();
         this.set_human_params();
@@ -517,15 +553,15 @@ class Game {
             that.draw_player();
             if (that.level.get_cell(...that.toCellCoords(that.player_coords)) == CELLTYPES.GOAL) {
                 alert("You did it!");
-                await that.reinit("start");
+                await that.nextlevel();
                 render();
             } else if (that.hpbar.value == 0) {
                 if (that.cause == CAUSES.DROWNING)
                     that.set_fish_params();
                 else if (that.cause == CAUSES.SUFFOCATE)
                     that.set_human_params();
-
-                that.reset();
+                else if (that.cause == CAUSES.FALLING)
+                    that.set_bird_params();
 
                 that.params.ctx.fillStyle = "#FF000050";
                 that.params.ctx.fillRect(
@@ -535,9 +571,12 @@ class Game {
                     that.params.ctx.canvas.height
                 );
 
-                alert(`You died! You shall be reborn as as ${that.player_state}`);
+                setTimeout(() => {
+                    alert(`You died! You shall be reborn as as ${that.player_state}`);
+                    that.reset();
 
-                setTimeout(render, 5 * 1000 / 30);
+                    setTimeout(render, 5 * 1000 / 30);
+                }, 100);
             } else {
                 setTimeout(render, 1000 / 30);
             }
