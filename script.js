@@ -71,6 +71,7 @@ class Level {
         this.initialized = false;
         this.lines = null;
         this.moving_platforms = [];
+        this.button_state = false;
     }
 
     async initialize() {
@@ -155,7 +156,9 @@ class Level {
         const cell = this.get_cell(x, y);
         // TODO look at state of locks and conditional ground as well.
 
-        if (cell == CELLTYPES.ONGROUND)
+        if (cell == CELLTYPES.ONGROUND && !this.button_state)
+            return CELLTYPES.GROUND;
+        if (cell == CELLTYPES.OFFGROUND && this.button_state)
             return CELLTYPES.GROUND;
 
         if (cell == CELLTYPES.SPIKE)
@@ -165,6 +168,10 @@ class Level {
             return CELLTYPES.AIR;
 
         return cell;
+    }
+
+    toggle_button() {
+        this.button_state = !this.button_state;
     }
 
     draw_cell(params, x, y) {
@@ -183,15 +190,27 @@ class Level {
             case '|':
             case ' ': break;
 
-            case '%':
             case '=': {
                 params.ctx.fillStyle = "#000000";
                 rect();
                 break;
             };
 
+            case '%': {
+                if (!this.button_state)
+                    params.ctx.fillStyle = "#000000";
+                else
+                    params.ctx.fillStyle = "#00000050";
+                rect();
+                break;
+            }
+
             case '@': {
-                // TODO
+                if (this.button_state)
+                    params.ctx.fillStyle = "#000000";
+                else
+                    params.ctx.fillStyle = "#00000050";
+                rect();
                 break;
             }
 
@@ -202,7 +221,13 @@ class Level {
             }
 
             case '*': {
-                // TODO
+                params.ctx.fillStyle = "#FF0000";
+                params.ctx.fillRect(
+                    x * params.cell_width + params.cell_width / 3,
+                    y * params.cell_height + 3 * params.cell_height / 4,
+                    params.cell_width / 3,
+                    params.cell_height / 4
+                );
                 break;
             }
 
@@ -277,7 +302,7 @@ class Game {
         "level/button"
     ]
 
-    levelidx = 0;
+    levelidx = 3;
 
     constructor(container) {
         const canvas = document.createElement("canvas");
@@ -508,6 +533,17 @@ class Game {
         }
     }
 
+    update_interactions() {
+        if (!(this.player_state == STATE.HUMAN && this.keyActive("ArrowDown")))
+            return;
+
+        const bbox = this.getPlayerBoundingBox();
+        const button = this.level.get_cell(...bbox.cell.top_left) == CELLTYPES.BUTTON;
+        if (button) {
+            this.level.toggle_button();
+        }
+    }
+
     draw_player() {
         if (this.player_state == STATE.HUMAN) {
             this.params.ctx.fillStyle = "#FF0000";
@@ -552,6 +588,7 @@ class Game {
         }
     }
 
+
     setSpawn() {
         const spawn_cell = this.level.find_spawn();
         this.spawn_point = [spawn_cell[0] * this.params.cell_width, spawn_cell[1] * this.params.cell_height];
@@ -584,6 +621,7 @@ class Game {
         const that = this;
         async function render() {
             that.update_physics();
+            that.update_interactions();
             that.level.drawLevel(that.params);
             that.draw_player();
             if (that.level.get_cell(...that.toCellCoords(that.player_coords)) == CELLTYPES.GOAL) {
