@@ -58,6 +58,7 @@ CELLTYPES = {
     VBoundry: '_',
     SPIKE: '&',
     SPAWN: '^',
+    CHECKPOINT: '+',
     GOAL: '#',
     isKey: (c) => Boolean(c.match("[a-z]")),
     isLock: (c) => Boolean(c.match("[A-Z]")),
@@ -72,6 +73,7 @@ class Level {
         this.lines = null;
         this.moving_platforms = [];
         this.button_state = false;
+        this.active_checkpoint = [-1, -1];
     }
 
     async initialize() {
@@ -86,6 +88,10 @@ class Level {
         }
 
         // TODO find all InteractiveObjects
+    }
+
+    activate_checkpoint(point) {
+        this.active_checkpoint = [...point];
     }
 
     extract_moving_platform(x, y) {
@@ -245,7 +251,7 @@ class Level {
                 params.ctx.stroke();
             }
 
-            case '^': {
+            case '+': {
                 params.ctx.fillStyle = "#000000";
                 params.ctx.fillRect(
                     x * params.cell_width + 2 * params.cell_width / 5,
@@ -254,7 +260,8 @@ class Level {
                     params.cell_height
                 );
 
-                params.ctx.fillStyle = "#22E263";
+                const is_active = this.active_checkpoint[0] == x && this.active_checkpoint[1] == y;
+                params.ctx.fillStyle = is_active ? "#22E263" : "#000000";
                 params.ctx.fillRect(
                     x * params.cell_width + 3 * params.cell_width / 5,
                     y * params.cell_height,
@@ -315,9 +322,10 @@ class Game {
         "level/puzzle1",
         "level/button",
         "level/puzzle2",
+        // "level/puzzle3",
     ]
 
-    levelidx = 4;
+    levelidx = 0;
 
     constructor(container) {
         const canvas = document.createElement("canvas");
@@ -483,8 +491,12 @@ class Game {
                 if (this.player_state == STATE.FISH)
                     jumpVel /= 2;
 
-                if (this.keymap.has("ArrowUp"))
+                if (this.keymap.has("ArrowUp")) {
                     this.player_velocity[1] -= jumpVel;
+                    if (this.player_state == STATE.HUMAN)
+                        this.player_velocity[0] *= 3;
+                    console.log(this.player_velocity);
+                }
             }
         }
 
@@ -549,13 +561,17 @@ class Game {
     }
 
     update_interactions() {
-        if (!(this.player_state == STATE.HUMAN && this.keyActive("ArrowDown")))
-            return;
-
         const bbox = this.getPlayerBoundingBox();
-        const button = this.level.get_cell(...bbox.cell.top_left) == CELLTYPES.BUTTON;
-        if (button) {
-            this.level.toggle_button();
+        const cell = this.level.get_cell(...bbox.cell.top_left);
+        if (cell == CELLTYPES.BUTTON) {
+            if (this.player_state == STATE.HUMAN && this.keyActive("ArrowDown"))
+                this.level.toggle_button();
+        } else if (cell == CELLTYPES.CHECKPOINT) {
+            this.spawn_point = [
+                bbox.cell.top_left[0] * this.params.cell_width,
+                bbox.cell.top_left[1] * this.params.cell_height
+            ];
+            this.level.activate_checkpoint(bbox.cell.top_left);
         }
     }
 
